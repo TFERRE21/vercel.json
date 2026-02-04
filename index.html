@@ -1,4 +1,6 @@
 <script>
+let walletConnected = false;
+
 async function connectWallet() {
   if (!window.ethereum) {
     alert("OKX Wallet não detectada.");
@@ -7,30 +9,31 @@ async function connectWallet() {
 
   try {
     // pede conexão
-    const accounts = await window.ethereum.request({
+    await window.ethereum.request({
       method: "eth_requestAccounts"
     });
 
-    if (accounts.length > 0) {
-      document.getElementById("status").innerText =
-        "Conectado: " + accounts[0];
-    }
-
-    // escuta troca de conta (OKX usa isso)
-    window.ethereum.on("accountsChanged", function (accounts) {
-      if (accounts.length > 0) {
-        document.getElementById("status").innerText =
-          "Conectado: " + accounts[0];
-      } else {
-        document.getElementById("status").innerText =
-          "Status: Desconectado";
-      }
-    });
-
+    // NÃO atualiza a tela agora
+    // aguarda o evento da carteira
   } catch (e) {
     console.error(e);
-    alert("Conexão cancelada ou erro.");
+    alert("Conexão cancelada.");
   }
 }
+
+// escuta quando a OKX termina a ação
+if (window.ethereum) {
+  window.ethereum.on("accountsChanged", function (accounts) {
+    if (accounts.length > 0) {
+      walletConnected = true;
+      document.getElementById("status").innerText =
+        "Conectado: " + accounts[0];
+    } else {
+      document.getElementById("status").innerText =
+        "Status: Desconectado";
+    }
+  });
+}
 </script>
+
 
