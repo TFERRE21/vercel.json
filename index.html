@@ -1,51 +1,26 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <title>Web3 Bot Online</title>
-
-  <!-- ethers.js -->
-  <script src="https://cdn.jsdelivr.net/npm/ethers@6.6.2/dist/ethers.umd.min.js"></script>
-
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 40px;
-    }
-    button {
-      padding: 12px 20px;
-      font-size: 16px;
-      cursor: pointer;
-    }
-  </style>
-</head>
-<body>
-
-<h1>🚀 Web3 Bot Online</h1>
-<p>Status: <span id="status">Desconectado</span></p>
-
-<button onclick="connectWallet()">🔌 Conectar OKX Wallet</button>
-
 <script>
 async function connectWallet() {
-  if (!window.ethereum) {
-    alert("Nenhuma carteira Web3 encontrada. Instale a OKX Wallet.");
+  if (typeof window.ethereum === "undefined") {
+    alert("OKX Wallet não detectada. Verifique a extensão.");
     return;
   }
 
   try {
-    const provider = new ethers.BrowserProvider(window.ethereum);
-    const signer = await provider.getSigner();
-    const address = await signer.getAddress();
+    // FORÇA a abertura da carteira (ESSENCIAL)
+    const accounts = await window.ethereum.request({
+      method: "eth_requestAccounts"
+    });
+
+    const address = accounts[0];
 
     document.getElementById("status").innerText =
       "Conectado: " + address;
-  } catch (err) {
-    console.error(err);
-    alert("Conexão cancelada ou erro.");
+
+    console.log("Carteira conectada:", address);
+
+  } catch (error) {
+    console.error(error);
+    alert("Conexão cancelada ou bloqueada pela carteira.");
   }
 }
 </script>
-
-</body>
-</html>
