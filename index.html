@@ -3,75 +3,179 @@
 <head>
   <meta charset="UTF-8" />
   <title>Memebot — Solana</title>
+
   <style>
-    body { font-family: Arial; padding: 30px; background:#f7f7f7 }
-    .card { background:#fff; padding:20px; border-radius:8px; max-width:520px }
-    label { display:block; margin-top:12px }
-    input, select, button { width:100%; padding:10px; margin-top:6px }
-    .row { display:flex; gap:10px; margin-top:15px }
-    .status { background:#eee; padding:10px; margin-top:15px; white-space:pre-wrap }
+    body {
+      font-family: Arial, sans-serif;
+      background: #f7f7f7;
+      padding: 30px;
+    }
+
+    h1 {
+      margin-bottom: 15px;
+    }
+
+    .card {
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      max-width: 520px;
+    }
+
+    label {
+      display: block;
+      margin-top: 12px;
+      font-weight: bold;
+    }
+
+    input, select, button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 6px;
+      font-size: 14px;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .row button {
+      flex: 1;
+    }
+
+    .status {
+      margin-top: 15px;
+      padding: 10px;
+      background: #eee;
+      border-radius: 6px;
+      white-space: pre-wrap;
+      font-family: monospace;
+      font-size: 13px;
+    }
+
+    .simulacoes {
+      margin-top: 15px;
+    }
+
+    .simulacao {
+      background: #f1f1f1;
+      padding: 8px;
+      margin-top: 6px;
+      border-radius: 5px;
+      font-size: 13px;
+    }
   </style>
 </head>
+
 <body>
 
 <h1>🤖 Memebot — Solana</h1>
 
 <div class="card">
+
+  <label>Rede</label>
+  <select disabled>
+    <option>Solana</option>
+  </select>
+
   <label>Market Cap mínimo (USD)</label>
-  <input type="number" id="minCap" value="20000">
+  <input type="number" id="minCap" value="20000" />
 
   <label>Valor por trade (R$)</label>
-  <input type="number" id="tradeValue" value="100">
+  <input type="number" id="tradeValue" value="100" />
 
   <label>Take Profit (%)</label>
-  <input type="number" id="takeProfit" value="20">
+  <input type="number" id="takeProfit" value="20" />
 
   <div class="row">
     <button onclick="startBot()">▶️ Ligar bot</button>
     <button onclick="stopBot()">⏹️ Parar bot</button>
   </div>
 
-  <div class="status" id="status">Status: carregando...</div>
+  <div class="status" id="status">
+    Status: carregando...
+  </div>
+
+  <div class="simulacoes" id="simulacoes"></div>
+
 </div>
 
 <script>
 const API = "https://memebot-dryrun.onrender.com";
 
+/* ---------- ENVIAR CONFIG ---------- */
 async function startBot() {
-  await fetch(API + "/start", {
+  const config = {
+    network: "solana",
+    minCap: Number(document.getElementById("minCap").value),
+    tradeValueBRL: Number(document.getElementById("tradeValue").value),
+    takeProfit: Number(document.getElementById("takeProfit").value)
+  };
+
+  const r = await fetch(API + "/start", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      network: "solana",
-      minCap: Number(minCap.value),
-      tradeValueBRL: Number(tradeValue.value),
-      takeProfit: Number(takeProfit.value)
-    })
+    body: JSON.stringify(config)
   });
+
+  await r.json();
+  atualizarStatus();
 }
 
+/* ---------- PARAR BOT ---------- */
 async function stopBot() {
   await fetch(API + "/stop", { method: "POST" });
+  atualizarStatus();
 }
 
-async function updateStatus() {
-  const res = await fetch(API + "/status");
-  const data = await res.json();
+/* ---------- ATUALIZAR STATUS ---------- */
+async function atualizarStatus() {
+  try {
+    const r = await fetch(API + "/status");
+    const data = await r.json();
 
-  document.getElementById("status").innerText =
-    "Ligado: " + data.ligado + "\n\n" +
-    JSON.stringify(data, null, 2);
+    document.getElementById("status").innerText =
+      "Ligado: " + data.ligado + "\n\n" +
+      "Config:\n" +
+      JSON.stringify(data.config, null, 2);
 
-  if (data.config) {
-    minCap.value = data.config.minCap;
-    tradeValue.value = data.config.tradeValueBRL;
-    takeProfit.value = data.config.takeProfit;
+    renderSimulacoes(data.simulacoes);
+  } catch (e) {
+    document.getElementById("status").innerText =
+      "Erro ao conectar com backend";
   }
 }
 
-// 🔁 sincroniza a cada 3 segundos
-setInterval(updateStatus, 3000);
-updateStatus();
+/* ---------- MOSTRAR SIMULAÇÕES ---------- */
+function renderSimulacoes(lista) {
+  const box = document.getElementById("simulacoes");
+  box.innerHTML = "<h3>📊 Simulações</h3>";
+
+  if (!lista || lista.length === 0) {
+    box.innerHTML += "<div class='simulacao'>Nenhuma simulação ainda</div>";
+    return;
+  }
+
+  lista.slice(-5).reverse().forEach(s => {
+    box.innerHTML += `
+      <div class="simulacao">
+        Token: ${s.token}<br>
+        Preço: $${Number(s.preco).toFixed(6)}<br>
+        Alvo: $${Number(s.alvo).toFixed(6)}
+      </div>
+    `;
+  });
+}
+
+/* ---------- AUTO SYNC ---------- */
+atualizarStatus();
+setInterval(atualizarStatus, 5000);
 </script>
 
 </body>
