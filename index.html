@@ -1,24 +1,28 @@
 import express from "express";
-import axios from "axios";
 import cors from "cors";
 
 const app = express();
-app.use(express.json());
 app.use(cors());
+app.use(express.json());
 
+/**
+ * Estado global do bot
+ */
 let state = {
   ligado: false,
   config: null,
   simulacoes: []
 };
 
-/* ---------------- START ---------------- */
+/**
+ * Ligar bot
+ */
 app.post("/start", (req, res) => {
   state.ligado = true;
   state.config = req.body;
   state.simulacoes = [];
 
-  console.log("🟢 BOT LIGADO:", state.config);
+  console.log("✅ BOT LIGADO:", state.config);
 
   res.json({
     ok: true,
@@ -27,59 +31,57 @@ app.post("/start", (req, res) => {
   });
 });
 
-/* ---------------- STOP ---------------- */
+/**
+ * Parar bot
+ */
 app.post("/stop", (req, res) => {
   state.ligado = false;
-  console.log("🔴 BOT PARADO");
-  res.json({ ok: true });
+
+  console.log("⛔ BOT PARADO");
+
+  res.json({
+    ok: true,
+    msg: "Bot parado"
+  });
 });
 
-/* ---------------- STATUS ---------------- */
+/**
+ * Status do bot
+ */
 app.get("/status", (req, res) => {
   res.json(state);
 });
 
-/* ---------------- SCAN ---------------- */
+/**
+ * 🔧 SCAN — SIMULAÇÃO FAKE (TESTE CONTROLADO)
+ * Roda a cada 15 segundos quando o bot está ligado
+ */
 async function scan() {
   if (!state.ligado || !state.config) return;
 
-  try {
-    const r = await axios.get(
-      "https://api.dexscreener.com/latest/dex/pairs/solana"
-    );
+  const simulacaoFake = {
+    token: "TEST-MEME",
+    preco: 0.001,
+    alvo:
+      0.001 * (1 + state.config.takeProfit / 100),
+    marketCap: state.config.minCap + 1000,
+    horario: new Date().toISOString()
+  };
 
-    const pairs = r.data.pairs || [];
+  state.simulacoes.push(simulacaoFake);
 
-    for (const p of pairs) {
-      if (
-        p.fdv &&
-        p.priceUsd &&
-        Number(p.fdv) >= Number(state.config.minCap)
-      ) {
-        const simulacao = {
-          token: p.baseToken.symbol,
-          preco: Number(p.priceUsd),
-          alvo: Number(p.priceUsd) * (1 + state.config.takeProfit / 100),
-          marketCap: p.fdv,
-          horario: new Date().toISOString()
-        };
-
-        state.simulacoes.push(simulacao);
-
-        console.log("📈 SIMULAÇÃO:", simulacao);
-        break; // 1 por ciclo
-      }
-    }
-  } catch (e) {
-    console.log("❌ Erro DexScreener:", e.message);
-  }
+  console.log("🧪 SIMULAÇÃO GERADA:", simulacaoFake);
 }
 
-/* ---------------- LOOP ---------------- */
+/**
+ * Loop automático
+ */
 setInterval(scan, 15000);
 
-/* ---------------- SERVER ---------------- */
+/**
+ * Porta (Render usa PORT automaticamente)
+ */
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () =>
-  console.log("🚀 Memebot DRY-RUN rodando na porta", PORT)
-);
+app.listen(PORT, () => {
+  console.log("🚀 Memebot DRY-RUN ONLINE na porta", PORT);
+});
