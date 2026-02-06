@@ -1,103 +1,50 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <title>Memebot — Solana</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f4f4f4;
-      padding: 30px;
-    }
-    h1 {
-      margin-bottom: 10px;
-    }
-    .card {
-      background: #fff;
-      padding: 20px;
-      border-radius: 8px;
-      max-width: 620px;
-    }
-    label {
-      display: block;
-      margin-top: 12px;
-      font-weight: bold;
-    }
-    input, select, button {
-      width: 100%;
-      padding: 10px;
-      margin-top: 6px;
-      font-size: 14px;
-    }
-    button {
-      cursor: pointer;
-      margin-top: 10px;
-    }
-    .row {
-      display: flex;
-      gap: 10px;
-      margin-top: 16px;
-    }
-    .row button {
-      flex: 1;
-    }
-    .status {
-      margin-top: 15px;
-      padding: 10px;
-      background: #eee;
-      border-radius: 6px;
-      white-space: pre-wrap;
-      font-family: monospace;
-      font-size: 13px;
-    }
-    .simulacoes {
-      margin-top: 20px;
-    }
-    .sim {
-      background: #fafafa;
-      border: 1px solid #ddd;
-      border-radius: 6px;
-      padding: 10px;
-      margin-bottom: 10px;
-      font-size: 13px;
-    }
-    .lucro {
-      color: green;
-      font-weight: bold;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>Memebot — Solana</title>
+<style>
+body { font-family: Arial; background:#f7f7f7; padding:30px }
+.card { background:#fff; padding:20px; border-radius:8px; max-width:600px }
+label { display:block; margin-top:12px }
+input, button { width:100%; padding:10px; margin-top:6px }
+button { cursor:pointer }
+.status { background:#eee; padding:10px; margin-top:10px }
+table { width:100%; margin-top:15px; border-collapse:collapse }
+td, th { border:1px solid #ccc; padding:6px; font-size:13px }
+</style>
 </head>
 <body>
 
-<h1>🤖 Memebot — Solana</h1>
+<h2>🤖 Memebot — Solana</h2>
 
 <div class="card">
-
-  <label>Rede</label>
-  <select disabled>
-    <option>Solana</option>
-  </select>
-
   <label>Market Cap mínimo (USD)</label>
-  <input type="number" id="minCap" value="30" />
+  <input id="minCap" type="number" value="30">
 
   <label>Valor por trade (R$)</label>
-  <input type="number" id="tradeValue" value="100" />
+  <input id="tradeValue" type="number" value="100">
 
   <label>Take Profit (%)</label>
-  <input type="number" id="takeProfit" value="20" />
+  <input id="takeProfit" type="number" value="20">
 
-  <div class="row">
-    <button onclick="startBot()">▶️ Ligar bot</button>
-    <button onclick="stopBot()">⏹️ Parar bot</button>
-  </div>
+  <button onclick="startBot()">▶️ Ligar bot</button>
+  <button onclick="stopBot()">⏹️ Parar bot</button>
 
-  <div class="status" id="status">
-    Status: aguardando sincronização...
-  </div>
+  <div class="status" id="status">Status: parado</div>
 
-  <div class="simulacoes" id="simulacoes"></div>
+  <h3>Simulações</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Token</th><th>DEX</th><th>Entrada</th>
+        <th>Alvo</th><th>Lucro R$</th>
+      </tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
 
+  <h3>Total lucro estimado: R$ <span id="lucro">0</span></h3>
 </div>
 
 <script>
@@ -111,65 +58,39 @@ async function startBot() {
     takeProfit: Number(takeProfit.value)
   };
 
-  await fetch(`${API}/start`, {
+  await fetch(API + "/start", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(config)
   });
-
-  syncStatus();
 }
 
 async function stopBot() {
-  await fetch(`${API}/stop`, { method: "POST" });
-  syncStatus();
+  await fetch(API + "/stop", { method: "POST" });
 }
 
-async function syncStatus() {
-  try {
-    const res = await fetch(`${API}/status`);
-    const data = await res.json();
+async function sync() {
+  const r = await fetch(API + "/status");
+  const s = await r.json();
 
-    document.getElementById("status").innerText =
-      "Status: " + (data.ligado ? "LIGADO" : "PARADO") + "\n\n" +
-      JSON.stringify(data.config, null, 2);
+  status.innerText = s.ligado ? "Status: LIGADO" : "Status: PARADO";
+  rows.innerHTML = "";
+  lucro.innerText = s.totalLucro?.toFixed(2) || 0;
 
-    renderSimulacoes(data.simulacoes || []);
-  } catch (e) {
-    document.getElementById("status").innerText =
-      "Erro ao conectar com o backend";
-  }
-}
-
-function renderSimulacoes(lista) {
-  const div = document.getElementById("simulacoes");
-  div.innerHTML = "<h3>📊 Simulações</h3>";
-
-  if (lista.length === 0) {
-    div.innerHTML += "<p>Nenhuma simulação ainda...</p>";
-    return;
-  }
-
-  lista.slice().reverse().forEach(s => {
-    const lucro = ((s.alvo - s.entrada) / s.entrada * 100).toFixed(2);
-
-    div.innerHTML += `
-      <div class="sim">
-        <b>Token:</b> ${s.token}<br>
-        <b>DEX:</b> ${s.dex}<br>
-        <b>Market Cap:</b> $${s.marketCap}<br>
-        <b>Entrada:</b> ${s.entrada}<br>
-        <b>Alvo:</b> ${s.alvo}<br>
-        <span class="lucro">Lucro estimado: ${lucro}%</span><br>
-        <small>${new Date(s.horario).toLocaleString()}</small>
-      </div>
-    `;
+  (s.simulacoes || []).forEach(sim => {
+    rows.innerHTML += `
+      <tr>
+        <td>${sim.token}</td>
+        <td>${sim.dex}</td>
+        <td>${sim.entrada}</td>
+        <td>${sim.alvo}</td>
+        <td>${sim.lucroEstimado?.toFixed(2)}</td>
+      </tr>`;
   });
 }
 
-// 🔄 sincroniza automaticamente a cada 5s
-setInterval(syncStatus, 5000);
-syncStatus();
+setInterval(sync, 5000);
+sync();
 </script>
 
 </body>
