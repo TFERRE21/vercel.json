@@ -1,21 +1,21 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <title>Memebot — Solana</title>
-  <style>
-    body { font-family: Arial; background:#f4f4f4; padding:30px }
-    .card { background:#fff; padding:20px; border-radius:8px; max-width:600px }
-    label { display:block; margin-top:10px }
-    input, button { width:100%; padding:8px; margin-top:4px }
-    button { cursor:pointer }
-    pre { background:#eee; padding:10px; overflow:auto }
-  </style>
+<meta charset="UTF-8" />
+<title>Memebot — Solana</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+body { font-family: Arial; background:#f5f5f5; padding:30px }
+.card { background:#fff; padding:20px; max-width:700px; border-radius:8px }
+label { display:block; margin-top:10px }
+input, button { width:100%; padding:8px; margin-top:4px }
+table { width:100%; border-collapse:collapse; margin-top:10px }
+th, td { border:1px solid #ccc; padding:6px; font-size:13px }
+</style>
 </head>
 <body>
 
-<h1>🤖 Memebot — Solana</h1>
-
+<h2>🤖 Memebot — Solana</h2>
 <div class="card">
   <label>Market Cap mínimo (USD)</label>
   <input id="minCap" type="number" value="30">
@@ -26,17 +26,27 @@
   <label>Take Profit (%)</label>
   <input id="takeProfit" type="number" value="20">
 
-  <button onclick="startBot()">▶️ Ligar bot</button>
-  <button onclick="stopBot()">⏹️ Parar bot</button>
+  <button onclick="startBot()">▶️ Ligar</button>
+  <button onclick="stopBot()">⏹️ Parar</button>
 
   <h3>Status</h3>
-  <pre id="status">Carregando...</pre>
+  <pre id="status">---</pre>
 
   <h3>Simulações</h3>
-  <pre id="simulacoes">Nenhuma</pre>
+  <table>
+    <thead>
+      <tr>
+        <th>Token</th><th>Status</th><th>Entrada</th><th>Alvo</th><th>Stop</th>
+      </tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
 
-  <h3>Lucro Total (R$)</h3>
-  <pre id="lucro">0</pre>
+  <h3>Lucro Total</h3>
+  <b id="lucro">0</b>
+
+  <h3>Gráfico</h3>
+  <canvas id="grafico"></canvas>
 </div>
 
 <script>
@@ -44,33 +54,53 @@ const API = "https://memebot-dryrun.onrender.com";
 
 async function startBot() {
   await fetch(API + "/start", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
     body: JSON.stringify({
-      network: "solana",
-      minCap: Number(minCap.value),
-      tradeValueBRL: Number(tradeValue.value),
-      takeProfit: Number(takeProfit.value)
+      network:"solana",
+      minCap:Number(minCap.value),
+      tradeValueBRL:Number(tradeValue.value),
+      takeProfit:Number(takeProfit.value)
     })
   });
 }
 
 async function stopBot() {
-  await fetch(API + "/stop", { method: "POST" });
+  await fetch(API + "/stop", { method:"POST" });
 }
 
-async function atualizar() {
+const ctx = document.getElementById("grafico");
+const chart = new Chart(ctx, {
+  type:"line",
+  data:{ labels:[], datasets:[{ label:"Lucro", data:[], borderColor:"green" }] }
+});
+
+async function sync() {
   const r = await fetch(API + "/status");
-  const data = await r.json();
+  const d = await r.json();
 
-  status.textContent = JSON.stringify(data.config, null, 2);
-  simulacoes.textContent = JSON.stringify(data.simulacoes, null, 2);
-  lucro.textContent = data.totalLucro || 0;
+  status.textContent = JSON.stringify(d.config, null, 2);
+  lucro.textContent = d.totalLucro.toFixed(2);
+
+  rows.innerHTML = "";
+  d.simulacoes.forEach(s=>{
+    rows.innerHTML += `
+      <tr>
+        <td>${s.token}</td>
+        <td>${s.status}</td>
+        <td>${s.entrada}</td>
+        <td>${s.alvo}</td>
+        <td>${s.stopAtual?.toFixed(6)}</td>
+      </tr>`;
+  });
+
+  chart.data.labels.push(new Date().toLocaleTimeString());
+  chart.data.datasets[0].data.push(d.totalLucro);
+  chart.update();
 }
 
-setInterval(atualizar, 5000);
-atualizar();
+setInterval(sync, 5000);
+sync();
 </script>
-
 </body>
 </html>
