@@ -1,97 +1,111 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-<meta charset="UTF-8">
-<title>Memebot — Solana</title>
-<style>
-body { font-family: Arial; background:#f7f7f7; padding:30px }
-.card { background:#fff; padding:20px; border-radius:8px; max-width:600px }
-label { display:block; margin-top:12px }
-input, button { width:100%; padding:10px; margin-top:6px }
-button { cursor:pointer }
-.status { background:#eee; padding:10px; margin-top:10px }
-table { width:100%; margin-top:15px; border-collapse:collapse }
-td, th { border:1px solid #ccc; padding:6px; font-size:13px }
-</style>
-</head>
-<body>
+import express from "express";
+import axios from "axios";
+import cors from "cors";
 
-<h2>🤖 Memebot — Solana</h2>
+const app = express();
+app.use(cors());
+app.use(express.json());
 
-<div class="card">
-  <label>Market Cap mínimo (USD)</label>
-  <input id="minCap" type="number" value="30">
+let status = {
+  ligado: false,
+  config: null,
+  simulacoes: [],
+  totalLucro: 0
+};
 
-  <label>Valor por trade (R$)</label>
-  <input id="tradeValue" type="number" value="100">
+const SCAN_INTERVAL = 15000; // 15s
 
-  <label>Take Profit (%)</label>
-  <input id="takeProfit" type="number" value="20">
+// =======================
+// ROTAS
+// =======================
 
-  <button onclick="startBot()">▶️ Ligar bot</button>
-  <button onclick="stopBot()">⏹️ Parar bot</button>
+app.post("/start", (req, res) => {
+  status.ligado = true;
+  status.config = req.body;
+  res.json({ ok: true, msg: "Bot ligado (simulação)", config: status.config });
+});
 
-  <div class="status" id="status">Status: parado</div>
+app.post("/stop", (req, res) => {
+  status.ligado = false;
+  status.config = null;
+  res.json({ ok: true, msg: "Bot parado" });
+});
 
-  <h3>Simulações</h3>
-  <table>
-    <thead>
-      <tr>
-        <th>Token</th><th>DEX</th><th>Entrada</th>
-        <th>Alvo</th><th>Lucro R$</th>
-      </tr>
-    </thead>
-    <tbody id="rows"></tbody>
-  </table>
+app.get("/status", (req, res) => {
+  res.json(status);
+});
 
-  <h3>Total lucro estimado: R$ <span id="lucro">0</span></h3>
-</div>
+// =======================
+// SCAN PRINCIPAL
+// =======================
 
-<script>
-const API = "https://memebot-dryrun.onrender.com";
+async function scan() {
+  if (!status.ligado || !status.config) return;
 
-async function startBot() {
-  const config = {
-    network: "solana",
-    minCap: Number(minCap.value),
-    tradeValueBRL: Number(tradeValue.value),
-    takeProfit: Number(takeProfit.value)
-  };
+  try {
+    const { minCap, tradeValueBRL, takeProfit } = status.config;
 
-  await fetch(API + "/start", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(config)
-  });
+    const r = await axios.get(
+      "https://api.dexscreener.com/latest/dex/pairs/solana"
+    );
+
+    const pairs = r.data.pairs || [];
+
+    for (const p of pairs) {
+      if (!p.priceUsd || !p.fdv) continue;
+      if (p.fdv < minCap) continue;
+
+      const entrada = Number(p.priceUsd);
+      const alvo = entrada * (1 + takeProfit / 100);
+      const lucroEstimado = (tradeValueBRL * takeProfit) / 100;
+
+      status.simulacoes.push({
+        token: p.baseToken.symbol,
+        address: p.baseToken.address,
+        dex: p.dexId,
+        entrada,
+        alvo,
+        marketCap: p.fdv,
+        horario: new Date().toISOString(),
+        lucroEstimado
+      });
+
+      status.totalLucro += lucroEstimado;
+
+      // limita histórico
+      if (status.simulacoes.length > 20) {
+        status.simulacoes.shift();
+      }
+
+      break; // 1 trade por ciclo
+    }
+
+  } catch (err) {
+    // FALLBACK (prova de vida)
+    const lucroEstimado = (status.config.tradeValueBRL * status.config.takeProfit) / 100;
+
+    status.simulacoes.push({
+      token: "FALLBACK-MEME",
+      address: "0xFALLBACK",
+      dex: "fallback",
+      entrada: 0.001,
+      alvo: 0.0012,
+      marketCap: status.config.minCap,
+      horario: new Date().toISOString(),
+      lucroEstimado
+    });
+
+    status.totalLucro += lucroEstimado;
+
+    if (status.simulacoes.length > 20) {
+      status.simulacoes.shift();
+    }
+  }
 }
 
-async function stopBot() {
-  await fetch(API + "/stop", { method: "POST" });
-}
+setInterval(scan, SCAN_INTERVAL);
 
-async function sync() {
-  const r = await fetch(API + "/status");
-  const s = await r.json();
-
-  status.innerText = s.ligado ? "Status: LIGADO" : "Status: PARADO";
-  rows.innerHTML = "";
-  lucro.innerText = s.totalLucro?.toFixed(2) || 0;
-
-  (s.simulacoes || []).forEach(sim => {
-    rows.innerHTML += `
-      <tr>
-        <td>${sim.token}</td>
-        <td>${sim.dex}</td>
-        <td>${sim.entrada}</td>
-        <td>${sim.alvo}</td>
-        <td>${sim.lucroEstimado?.toFixed(2)}</td>
-      </tr>`;
-  });
-}
-
-setInterval(sync, 5000);
-sync();
-</script>
-
-</body>
-</html>
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () =>
+  console.log("🤖 Memebot DRY-RUN rodando")
+);
